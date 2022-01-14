@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "modb_be"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+fastapi = "^0.68.0"
+uvicorn = "^0.15.0"
+passlib = "^1.7.4"
+loguru = "^0.5.3"
+python-jose = "^3.3.0"
+python-multipart = "^0.0.5"
+tortoise-orm = "^0.17.6"
+fastapi-pagination = {extras = ["tortoise"], version = "^0.8.3"}
+aerich = "^0.5.8"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
+requests = "^2.26.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
