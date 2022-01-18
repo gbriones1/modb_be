@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     db_generate: bool = True
     admin_username: str = "user"
     admin_password: str = "secret"
+    allow_origin: str = "http://localhost"
 
 class TestSettings(BaseSettings):
     app_name: str = "Awesome API"
@@ -24,6 +25,7 @@ class TestSettings(BaseSettings):
     # db_url: str = "sqlite://:memory:"
     admin_username: str = "user"
     admin_password: str = "secret"
+    allow_origin: str = "http://localhost"
 
 settings = Settings()
 if os.getenv('ENVIRONMENT') == "testing":

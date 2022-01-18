@@ -25,13 +25,13 @@ app.add_middleware(
         "http://192.168.0.17",
         "http://172.17.0.1",
         "http://localhost",
-        "https://localhost"
+        "https://localhost",
+        settings.allow_origin
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 register_tortoise(
     app,
