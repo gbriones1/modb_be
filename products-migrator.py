@@ -4,7 +4,7 @@ from datetime import datetime
 import tortoise
 from tortoise import Tortoise
 
-from main.api.schemas import ApplianceSerializer, BrandSerializer, ProductSerializer, ProviderSerializer
+from main.api.schemas import ApplianceSerializer, BrandSerializer, PercentageSerializer, ProductSerializer, ProviderSerializer
 from main.settings import settings
 
 dry_run = False
@@ -88,6 +88,12 @@ async def main():
                             providers[_id] = (await create(ProviderSerializer, **{"id":_id, "name":name}))
                         except tortoise.exceptions.IntegrityError:
                             providers[_id] = (await get_one(ProviderSerializer, name=name))
+                if model_name == 'database_percentage':
+                    for row in line[42:-3].split("),("):
+                        _id, mpl, increment, _, _, _, _, _ = row.split(",")
+                        _id = int(_id)
+                        # print(_id, mpl, increment)
+                        await create(PercentageSerializer, **{"id":_id, "max_price_limit":mpl, "increment": increment})
                 if model_name == 'database_product':
                     for row in line[39:-3].split("),("):
                         # print(row)
@@ -120,7 +126,7 @@ async def main():
                         products[_id] = (await create(ProductSerializer, **data))
                         if not providers[provider_id].id in provider_products.keys():
                             provider_products[providers[provider_id].id] = []
-                        provider_products[providers[provider_id].id].append({"product_id":products[_id].id, "price":price, "discount":discount})
+                        provider_products[providers[provider_id].id].append({"code": products[_id].code, "product_id":products[_id].id, "price":price, "discount":discount})
                 # print(model_name)
 
     for p_id, pp in provider_products.items():

@@ -35,13 +35,13 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {"access_token": access_token, "token_type": "bearer", "expires_on": expires_delta}
 
 
-@router.get("/users", response_model=List[UserSchema])
+@router.get("/user", response_model=List[UserSchema])
 async def list_users(current_user: UserSchema = Depends(requires_permission)):
     result = await UserSchema.from_queryset(User.all())
     return result
 
 
-@router.post("/users", response_model=UserSchema)
+@router.post("/user", response_model=UserSchema)
 async def create_user(user: UserCreateSchema, current_user: UserSchema = Depends(requires_permission)):
     data = user.dict(exclude_unset=True)
     roles_data = data.pop("roles", [])
@@ -54,14 +54,14 @@ async def create_user(user: UserCreateSchema, current_user: UserSchema = Depends
 
 
 @router.get(
-    "/users/{user_id}", response_model=UserSchema, responses={404: {"model": HTTPNotFoundError}}
+    "/user/{user_id}", response_model=UserSchema, responses={404: {"model": HTTPNotFoundError}}
 )
 async def get_user(user_id: int, current_user: UserSchema = Depends(requires_permission)):
     return await UserSchema.from_queryset_single(User.get(id=user_id))
 
 
 @router.put(
-    "/users/{user_id}", response_model=UserSchema, responses={404: {"model": HTTPNotFoundError}}
+    "/user/{user_id}", response_model=UserSchema, responses={404: {"model": HTTPNotFoundError}}
 )
 async def update_user(user_id: int, user: UserCreateSchema, current_user: UserSchema = Depends(requires_permission)):
     data = user.dict(exclude_unset=True)
@@ -72,7 +72,7 @@ async def update_user(user_id: int, user: UserCreateSchema, current_user: UserSc
     return await UserSchema.from_queryset_single(User.get(id=user_id))
 
 
-@router.delete("/users/{user_id}", response_model=StatusSchema, responses={404: {"model": HTTPNotFoundError}})
+@router.delete("/user/{user_id}", response_model=StatusSchema, responses={404: {"model": HTTPNotFoundError}})
 async def delete_user(user_id: int, current_user: UserSchema = Depends(requires_permission)):
     deleted_count = await User.filter(id=user_id).delete()
     if not deleted_count:
@@ -80,11 +80,11 @@ async def delete_user(user_id: int, current_user: UserSchema = Depends(requires_
     return StatusSchema(message=f"Deleted user {user_id}")
 
 
-@router.get("/users/me/", response_model=UserSchema)
-async def read_users_me(current_user: UserSchema = Depends(requires_permission)):
+@router.get("/user/me/", response_model=UserSchema)
+async def read_users_me(current_user: UserSchema = Depends(requires_login)):
     return current_user
 
 
-@router.get("/roles", response_model=List[RoleSchema])
+@router.get("/role", response_model=List[RoleSchema])
 async def list_roles():
     return await RoleSchema.from_queryset(Role.all())

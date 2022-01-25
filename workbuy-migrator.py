@@ -59,6 +59,8 @@ async def main():
     # all_taxpayers = await get_all(TaxPayerSerializer)
 
     workbuys = {}
+    ups_count = {}
+    ups = {}
 
     # providers = set()
     # taxpayers = set()
@@ -74,7 +76,7 @@ async def main():
         headers = next(reader)
         for row in reader:
             w = dict(zip(headers, row))
-            if w.get('now') and isfloat(w.get('HOJA', "")) and w.get('ORG') and w.get('OC'):
+            if w.get('now') and isfloat(w.get('HOJA', "")) and w.get('ORG') and w.get('OC') and w['ORG'] != 'X':
                 w_id = int(w['HOJA'])
                 w_date = datetime.strptime(w['now'], '%d/%m/%Y %H:%M:%S')
                 provider = None
@@ -84,9 +86,11 @@ async def main():
                 tp_id = None
                 empl_id = None
                 invoice_number = None
+                comment = w.get('OBSERVACION')
+                discount = 0.0
                 w_price = 0.0
                 order_unregisteredproducts = []
-                order_products = []
+                order_provider_products = []
                 customer_query = await filter_by(CustomerSerializer, name=w['EMPRESA'] if w['EMPRESA'] else 'DESCONOCIDO')
                 if customer_query:
                     cust_id = customer_query[0].id
@@ -122,8 +126,6 @@ async def main():
                     if isfloat(w.get(str(i+1)+'_CANT', "")) and isfloat(w.get(str(i+1)+'_IMPORTE', "")) and int(w.get(str(i+1)+'_CANT')) > 0:
                         w_price += (float(w[str(i+1)+'_IMPORTE'])*int(w[str(i+1)+'_CANT']))
                         product_query = await filter_by(ProductSerializer, code=w[str(i+1)+'_COD'])
-                        # if w[str(i+1)+'_COD'] == 'TFA410':
-                        #     import pdb; pdb.set_trace()
                         if product_query:
                             pp_id = None
                             provider_query = await filter_by(ProviderSerializer, name=w['Proveedor'])
@@ -138,7 +140,7 @@ async def main():
                                 new_pp = []
                                 for pp in provider.provider_products:
                                     new_pp.append({'id': pp.id})
-                                new_pp.append({"product_id":product_query[0].id, "price":float(w[str(i+1)+'_IMPORTE'])})
+                                new_pp.append({"product_id":product_query[0].id, "price":float(w[str(i+1)+'_IMPORTE']), "code":product_query[0].code})
                                 await update(ProviderSerializer, provider.id, **{"provider_products":new_pp})
                                 provider_query = await filter_by(ProviderSerializer, name=w['Proveedor'])
                                 for pp in provider_query[0].provider_products:
@@ -147,18 +149,27 @@ async def main():
                                         break
                             if not dry_run and provider and not pp_id:
                                 import pdb; pdb.set_trace()
-                            order_products.append({
+                            order_provider_products.append({
                                 'provider_product_id': pp_id,
                                 'amount': int(w[str(i+1)+'_CANT']),
                                 'price': float(w[str(i+1)+'_IMPORTE']),
                             })
                         else:
-                            order_unregisteredproducts.append({
-                                'code': w[str(i+1)+'_COD'],
-                                'description': w[str(i+1)+'_REFA'],
-                                'amount': int(w[str(i+1)+'_CANT']),
-                                'price': float(w[str(i+1)+'_IMPORTE']),
-                            })
+                            if float(w[str(i+1)+'_IMPORTE']) < 0.0:
+                                discount = float(w[str(i+1)+'_IMPORTE']) * -1
+                            else:
+                                if w[str(i+1)+'_COD'] and w[str(i+1)+'_COD'] != "0":
+                                    if w[str(i+1)+'_COD'] not in ups_count:
+                                        ups_count[w[str(i+1)+'_COD']] = 0
+                                        ups[w[str(i+1)+'_COD']] = set()
+                                    ups_count[w[str(i+1)+'_COD']] += 1
+                                    ups[w[str(i+1)+'_COD']].add(w[str(i+1)+'_REFA'])
+                                order_unregisteredproducts.append({
+                                    'code': w[str(i+1)+'_COD'],
+                                    'description': w[str(i+1)+'_REFA'],
+                                    'amount': int(w[str(i+1)+'_CANT']),
+                                    'price': float(w[str(i+1)+'_IMPORTE']),
+                                })
                 w_price = float("{:.2f}".format(w_price))
                 if isfloat(w.get('IVA')):
                     iva = float("{:.2f}".format(float(w.get('IVA'))))
@@ -187,8 +198,10 @@ async def main():
                     'claimant_id': empl_id,
                     'invoice_number': invoice_number,
                     'include_iva': w_iva,
+                    'discount': discount,
+                    'comment': comment,
                     'order_unregisteredproducts': order_unregisteredproducts,
-                    'order_products': order_products
+                    'order_provider_products': order_provider_products
                 })
                 # providers.add(w['Proveedor'])
                 # taxpayers.add(w['RAZON SOCIAL'])
@@ -205,8 +218,8 @@ async def main():
     if not dry_run:
         for w_id, wb in workbuys.items():
             await create(WorkBuySerializer, **wb)
-
-    # import pdb; pdb.set_trace()
+    else:
+        import pdb; pdb.set_trace()
     await Tortoise.close_connections()
 
 asyncio.run(main())

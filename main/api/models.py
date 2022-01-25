@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, unique
 from copy import copy
 from typing import Any, Dict, List, Type
 
@@ -128,7 +128,7 @@ class APIModel(models.Model):
                 zero_ids.append(field)
         for field in zero_ids:
             kwargs.pop(field)
-        logger.debug(f"Creating object with data: {kwargs}")
+        # logger.debug(f"Creating object with data: {kwargs}")
         instance = await super().create(**kwargs)
         logger.debug(f"{cls.__name__} ID generated: {instance.id}")
         for field, data_list in bw_relations.items():
@@ -161,7 +161,7 @@ class APIModel(models.Model):
         return kwargs
 
 
-class Appliance(models.Model):
+class Appliance(APIModel):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=100, unique=True)
     
@@ -170,7 +170,7 @@ class Appliance(models.Model):
         ordering = ["name"]
 
 
-class Brand(models.Model):
+class Brand(APIModel):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=100, unique=True)
     
@@ -179,7 +179,7 @@ class Brand(models.Model):
         ordering = ["name"]
 
 
-class TaxPayer(models.Model):
+class TaxPayer(APIModel):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=100, unique=True)
     key = fields.CharField(max_length=13, unique=True)
@@ -189,7 +189,7 @@ class TaxPayer(models.Model):
         ordering = ["name"]
 
 
-class Organization(models.Model):
+class Organization(APIModel):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=100, unique=True)
     prefix = fields.CharField(max_length=3, unique=True, null=True)
@@ -199,7 +199,7 @@ class Organization(models.Model):
         ordering = ["name"]
 
 
-class StorageType(models.Model):
+class StorageType(APIModel):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=100, unique=True)
 
@@ -291,14 +291,28 @@ class Product(APIModel):
 
 class Provider_Product(APIModel):
     id = fields.IntField(pk=True)
+    code = fields.CharField(max_length=30)
     provider = fields.ForeignKeyField('models.Provider', related_name='provider_products', null=True)
     product = fields.ForeignKeyField('models.Product', related_name='provider_products', null=True)
     price = fields.DecimalField(max_digits=9, decimal_places=2)
-    discount = fields.DecimalField(max_digits=9, decimal_places=2, default=0.0)
-
+    
     class Meta:
-        unique_together=(("provider", "product"),)
+        unique_together=(("provider", "code"),)
 
+class Customer_Product(APIModel):
+    id = fields.IntField(pk=True)
+    code = fields.CharField(max_length=30)
+    customer = fields.ForeignKeyField('models.Customer', related_name='customer_products', null=True)
+    product = fields.ForeignKeyField('models.Product', related_name='customer_products', null=True)
+    price = fields.DecimalField(max_digits=9, decimal_places=2)
+    
+    class Meta:
+        unique_together=(("customer", "code"),)
+
+class Percentage(APIModel):
+    id = fields.IntField(pk=True)
+    max_price_limit = fields.DecimalField(max_digits=9, decimal_places=2, unique=True)
+    increment = fields.FloatField()
 
 class WorkBuy(APIModel):
     id = fields.IntField(pk=True)
@@ -332,7 +346,7 @@ class PaymentMethod(str, Enum):
     warrant = 'w'
 
 
-class OrderPayment(models.Model):
+class OrderPayment(APIModel):
     id = fields.IntField(pk=True)
     date = fields.DateField(auto_now_add=True)
     amount = fields.DecimalField(max_digits=9, decimal_places=2)
@@ -340,10 +354,10 @@ class OrderPayment(models.Model):
     method = fields.CharEnumField(PaymentMethod, max_length=1, default=PaymentMethod.cash)
 
 
-class Order_Product(APIModel):
+class Order_Provider_Product(APIModel):
     id = fields.IntField(pk=True)
-    order = fields.ForeignKeyField('models.Order', related_name='order_products')
-    provider_product = fields.ForeignKeyField('models.Provider_Product', related_name='order_products')
+    order = fields.ForeignKeyField('models.Order', related_name='order_provider_products')
+    provider_product = fields.ForeignKeyField('models.Provider_Product', related_name='order_provider_products')
     amount = fields.IntField()
     price = fields.DecimalField(max_digits=9, decimal_places=2)
 
@@ -408,9 +422,7 @@ class Work(APIModel):
     created_at = fields.DatetimeField(auto_now_add=True)
     modified_at = fields.DatetimeField(auto_now=True)
     number = fields.CharField(max_length=12)
-    customer = fields.ForeignKeyField('models.Customer', related_name='works')
-    organization = fields.ForeignKeyField('models.Organization', related_name='works')
-    taxpayer = fields.ForeignKeyField('models.TaxPayer', related_name='works', null=True)
+    taxpayer = fields.ForeignKeyField('models.TaxPayer', related_name='works')
     unit = fields.CharField(max_length=30, null=True)
     model = fields.CharField(max_length=30, null=True)
     authorized = fields.BooleanField(default=False)
@@ -418,7 +430,7 @@ class Work(APIModel):
     discount = fields.DecimalField(max_digits=9, decimal_places=2, null=True)
     state = fields.CharEnumField(WorkStates, max_length=1, default=WorkStates.quoted)
     comment = fields.TextField(null=True)
-    workbuy = fields.ForeignKeyField('models.WorkBuy', related_name='works', null=True)
+    workbuy = fields.ForeignKeyField('models.WorkBuy', related_name='works')
     has_invoice = fields.BooleanField(default=False)
     invoice_number = fields.CharField(max_length=30, null=True)
     invoice_uuid = fields.UUIDField(null=True)
@@ -429,12 +441,23 @@ class Work(APIModel):
         manager = APIManager()
 
 
-class WorkPayment(models.Model):
+class WorkPayment(APIModel):
     id = fields.IntField(pk=True)
     date = fields.DateField(auto_now_add=True)
     amount = fields.DecimalField(max_digits=9, decimal_places=2)
     work = fields.ForeignKeyField('models.Work', related_name='payments')
     method = fields.CharEnumField(PaymentMethod, max_length=1, default=PaymentMethod.cash)
+
+
+class Work_Customer_Product(APIModel):
+    id = fields.IntField(pk=True)
+    work = fields.ForeignKeyField('models.Work', related_name='work_customer_products')
+    customer_product = fields.ForeignKeyField('models.Customer_Product', related_name='work_customer_products')
+    amount = fields.IntField()
+    price = fields.DecimalField(max_digits=9, decimal_places=2)
+
+    class Meta:
+        manager = APIManager()
 
 
 class Work_Product(APIModel):

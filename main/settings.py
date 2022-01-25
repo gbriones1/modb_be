@@ -8,8 +8,8 @@ class Settings(BaseSettings):
     secret_key: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
     hash_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
-    db_url: str = "sqlite://./dev.sqlite3"
-    # db_url: str = "postgres://postgres:mysecretpassword@172.17.0.2:5432/somedb"
+    # db_url: str = "sqlite://./dev.sqlite3"
+    db_url: str = "postgres://postgres:mysecretpassword@172.17.0.2:5432/somedb"
     db_generate: bool = True
     admin_username: str = "user"
     admin_password: str = "secret"
