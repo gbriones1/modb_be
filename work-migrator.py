@@ -81,6 +81,8 @@ async def main():
                     w_date = datetime.strptime(w['FECHA'], '%d/%m/%Y')
                 unit = w.get('UNIDAD')
                 model = w.get('TIPO/MARCA')
+                has_credit = False
+                requires_invoice = False
                 invoice_number = None
                 invoice_date = None
                 cust_id = None
@@ -91,6 +93,10 @@ async def main():
                 work_customer_products = []
                 work_unregisteredproducts = []
                 work_employees = []
+                if w['RequiereFactura'].lower() == 'verdadero' or w['RequiereFactura'].lower() == 'true':
+                    requires_invoice = True
+                if w['CREDITO'].lower() == 'verdadero' or w['CREDITO'].lower() == 'true':
+                    has_credit = True
                 customer_query = await filter_by(CustomerSerializer, name=w['EMPRESA:'] if w['EMPRESA:'] and w['EMPRESA:'] != '0' else 'DESCONOCIDO')
                 if customer_query:
                     cust_id = customer_query[0].id
@@ -306,6 +312,8 @@ async def main():
                         'work_unregisteredproducts': work_unregisteredproducts,
                         'work_employees': work_employees,
                         'workbuy_id': wb_id,
+                        'has_credit': has_credit,
+                        'requires_invoice': requires_invoice,
                         'include_iva': w_iva,
                         'invoice_number': invoice_number,
                         'invoice_date': invoice_date,

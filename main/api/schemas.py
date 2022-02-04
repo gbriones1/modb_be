@@ -8,7 +8,7 @@ from tortoise.contrib.pydantic import pydantic_model_creator
 from tortoise.queryset import QuerySet, QuerySetSingle
 
 from main.logger import logger
-from main.api.models import Appliance, Brand, Customer, Employee, Order, Organization, Percentage, Product, Provider, Storage, StorageType, TaxPayer, Work_Employee, WorkBuy, Work
+from main.api.models import Appliance, Brand, Customer, Employee, Order, Organization, Percentage, Product, Provider, Storage, StorageBuy, StorageType, TaxPayer, Work_Employee, WorkBuy, Work
 
 
 class StatusSchema(BaseModel):
@@ -269,19 +269,28 @@ StorageTypeSerializer.Config.create_schema = GenericNameSchema
 ### Storage
 
 class StorageBaseSchema(PydanticModel):
-    organization: int
-    storagetype: int
+    organization: GenericIDNameSchema
+    storagetype: GenericIDNameSchema
 
 class StorageSchema(StorageBaseSchema):
     id: int
     
-    @validator('organization', 'storagetype', pre=True)
-    def validate_id(cls, v):
-        return v["id"] if v else None
+    # @validator('organization', 'storagetype', pre=True)
+    # def validate_id(cls, v):
+    #     return v["id"] if v else None
+
+class StorageCreateSchema(PydanticModel):
+    organization_id: int
+    storagetype_id: int
+
+class StorageUpdateSchema(PydanticModel):
+    organization_id: Optional[int]
+    storagetype_id: Optional[int]
 
 StorageSerializer = pydantic_model_creator(Storage)
 StorageSerializer.Config.schema = StorageSchema
-StorageSerializer.Config.create_schema = StorageBaseSchema
+StorageSerializer.Config.create_schema = StorageCreateSchema
+StorageSerializer.Config.update_schema = StorageUpdateSchema
 
 
 ### Employee
@@ -380,6 +389,7 @@ class OrderSchema(OrderBaseSchema):
     subtotal: float
     total: float
     workbuy_number: Optional[str]
+    storagebuy_number: Optional[str]
 
     @root_validator(pre=True)
     def root_validator_pre(cls, v):
@@ -394,6 +404,8 @@ class OrderSchema(OrderBaseSchema):
             v['total'] += v['total']*0.16
         if v.get('workbuy'):
             v['workbuy_number'] = v['workbuy']['organization']['prefix'] + str(v['workbuy']['id'])
+        if v.get('storagebuy'):
+            v['storagebuy_number'] = v['storagebuy']['organization']['prefix'] + str(v['storagebuy']['id'])
         return v
 
 class OrderCreateSchema(OrderBaseSchema):
@@ -431,7 +443,9 @@ OrderSerializer = pydantic_model_creator(Order, exclude=(
     "workbuy.works",
     "storagebuy.storage",
     "storagebuy.customer",
-    "storagebuy.organization"
+    'storagebuy.organization.storages',
+    'storagebuy.organization.workbuys',
+    'storagebuy.organization.works',
 ))
 OrderSerializer.Config.schema = OrderSchema
 OrderSerializer.Config.create_schema = OrderCreateSchema
@@ -519,6 +533,8 @@ class WorkBaseSchema(PydanticModel):
     unit: Optional[str]
     model: Optional[str]
     authorized: Optional[bool] = False
+    requires_invoice: Optional[bool] = False
+    has_credit: Optional[bool] = False
     include_iva: Optional[bool] = False
     discount: Optional[float] = 0.0
     comment: Optional[str]
@@ -642,16 +658,18 @@ class WorkBuyCreateSchema(PydanticModel):
 class WorkBuyUpdateSchema(PydanticModel):
     customer_id: Optional[int]
     organization_id: Optional[int]
-    orders: List[Union[OrderCreateSchema, GenericIDSchema]]
-    works: List[Union[WorkCreateSchema, GenericIDSchema]]
+    orders: List[Union[OrderCreateSchema, OrderUpdateSchema]]
+    works: List[Union[WorkCreateSchema, WorkUpdateSchema]]
 
 WorkBuySerializer = pydantic_model_creator(WorkBuy, exclude=(
     'customer.contacts',
     'customer.storagebuys',
+    'customer.workbuys',
     'customer.works',
     'customer.customer_products',
     'organization.storages',
     'organization.storagebuys',
+    'organization.workbuys',
     'organization.works',
     'orders.provider.contacts',
     'orders.provider.provider_products',
@@ -664,9 +682,68 @@ WorkBuySerializer = pydantic_model_creator(WorkBuy, exclude=(
     'works.taxpayer.orders',
     'works.payments',
     'works.work_employees',
-    'works.work_products.product',
+    # 'works.work_products.product',
     'works.work_customer_products.product',
 ))
 WorkBuySerializer.Config.schema = WorkBuySchema
 WorkBuySerializer.Config.create_schema = WorkBuyCreateSchema
 WorkBuySerializer.Config.update_schema = WorkBuyUpdateSchema
+
+
+### StorageBuy
+
+class StorageBuySchema(PydanticModel):
+    id: int
+    number: str
+    created_at: datetime.datetime
+    customer: GenericIDNameSchema
+    storage: StorageSchema
+    organization: OrganizationSchema
+    orders: Optional[List[OrderSchema]]
+    orders_number: int
+    total: float
+
+    @root_validator(pre=True)
+    def root_validator_pre(cls, v):
+        v['number'] = v["organization"]['prefix'] + str(v["id"])
+        v['orders_number'] = len(v['orders'] or [])
+        v['total'] = 0.0
+        for o in v['orders']:
+            o['storagebuy'] = v
+            o = OrderSchema.root_validator_pre(o)
+            v['total'] += o['total']
+        return v
+
+
+class StorageBuyCreateSchema(PydanticModel):
+    customer_id: int
+    organization_id: int
+    storage_id: int
+    orders: Optional[List[OrderCreateSchema]]
+
+class StorageBuyUpdateSchema(PydanticModel):
+    customer_id: Optional[int]
+    organization_id: Optional[int]
+    storage_id: Optional[int]
+    orders: List[Union[OrderCreateSchema, OrderUpdateSchema]]
+
+StorageBuySerializer = pydantic_model_creator(StorageBuy, exclude=(
+    'customer.contacts',
+    'customer.storagebuys',
+    'customer.workbuys',
+    'customer.works',
+    'customer.customer_products',
+    'organization.storages',
+    'organization.storagebuys',
+    'organization.workbuys',
+    'organization.works',
+    'orders.provider.contacts',
+    'orders.provider.provider_products',
+    'orders.taxpayer.works',
+    'orders.claimant.work_employees',
+    'orders.workbuy',
+    'orders.payments',
+))
+StorageBuySerializer.Config.schema = StorageBuySchema
+StorageBuySerializer.Config.create_schema = StorageBuyCreateSchema
+StorageBuySerializer.Config.update_schema = StorageBuyUpdateSchema

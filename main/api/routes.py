@@ -14,7 +14,7 @@ from fastapi_pagination import paginate, Page, Params
 from main.api.errors import ObjectNotFound
 from main.api.auth.schemas import UserSchema
 from main.api.auth.dependencies import requires_login, requires_permission
-from main.api.schemas import ApplianceSerializer, BrandSerializer, CustomerSerializer, EmployeeSerializer, OrderSerializer, OrganizationSerializer, PercentageSerializer, ProductSerializer, ProviderSerializer, StatusSchema, StorageSerializer, StorageTypeSerializer, TaxPayerSerializer, WorkBuySerializer, WorkSerializer
+from main.api.schemas import ApplianceSerializer, BrandSerializer, CustomerSerializer, EmployeeSerializer, OrderSerializer, OrganizationSerializer, PercentageSerializer, ProductSerializer, ProviderSerializer, StatusSchema, StorageBuySerializer, StorageSerializer, StorageTypeSerializer, TaxPayerSerializer, WorkBuySerializer, WorkSerializer
 from main.logger import logger
 
 
@@ -60,6 +60,10 @@ crud_endpoints = [
         "serializer": WorkBuySerializer,
         "filter_type": 'datetime_range'
     }, {
+        "pathname": 'storagebuy',
+        "serializer": StorageBuySerializer,
+        "filter_type": 'datetime_range'
+    }, {
         "pathname": 'order',
         "serializer": OrderSerializer,
         "filter_type": 'buy_ids',
@@ -67,6 +71,10 @@ crud_endpoints = [
         "pathname": 'work',
         "serializer": WorkSerializer,
         "filter_type": 'buy_ids'
+    }, {
+        "pathname": 'work_by_date',
+        "serializer": WorkSerializer,
+        "filter_type": 'datetime_range'
     }
 ]
 

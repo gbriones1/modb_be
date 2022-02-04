@@ -431,6 +431,8 @@ class Work(APIModel):
     state = fields.CharEnumField(WorkStates, max_length=1, default=WorkStates.quoted)
     comment = fields.TextField(null=True)
     workbuy = fields.ForeignKeyField('models.WorkBuy', related_name='works')
+    has_credit = fields.BooleanField(default=False)
+    requires_invoice = fields.BooleanField(default=False)
     has_invoice = fields.BooleanField(default=False)
     invoice_number = fields.CharField(max_length=30, null=True)
     invoice_uuid = fields.UUIDField(null=True)
