@@ -76,7 +76,6 @@ class APIQuerySet(QuerySet):
     @staticmethod
     async def update_bw_relations_recursive(bw_relations: dict, model: models.Model, obj_id: int):
         for field, data_list in bw_relations.items():
-            # import pdb; pdb.set_trace()
             logger.debug(f"Updating BW relations for {model.__name__} {obj_id} with data {data_list}")
             new_relations = []
             relation_field = model._meta.fields_map[field].relation_field
@@ -154,10 +153,11 @@ class APIModel(models.Model):
                 kwargs[f"{fk_field}_id"] = value
         for bw_fk_field in cls._meta.backward_fk_fields.intersection(set(kwargs.keys())):
             values = kwargs.pop(bw_fk_field)
-            processed_value = []
-            for value in values:
-                processed_value.append(await cls._meta.fields_map[bw_fk_field].related_model.preprocess_data(**value))
-            kwargs[bw_fk_field] = processed_value
+            if values:
+                processed_value = []
+                for value in values:
+                    processed_value.append(await cls._meta.fields_map[bw_fk_field].related_model.preprocess_data(**value))
+                kwargs[bw_fk_field] = processed_value
         return kwargs
 
 
@@ -442,6 +442,19 @@ class Work(APIModel):
     class Meta:
         manager = APIManager()
 
+    async def create_order(self, product_providers={}, unregistered_product_providers={}, customer_product_providers={}):
+        from main.api.schemas import WorkProductSchema
+        # WorkProductSchema.__config__.orig_model = Work_Product
+        import pdb; pdb.set_trace()
+        wp = await WorkProductSchema.from_queryset(self)
+        orders = {}
+        for wp_id, p_id in product_providers.items():
+            pass
+        for wup_id, p_id in unregistered_product_providers.items():
+            pass
+        for wcp_id, p_id in customer_product_providers.items():
+            pass
+        return orders
 
 class WorkPayment(APIModel):
     id = fields.IntField(pk=True)

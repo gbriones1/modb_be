@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 import datetime
 
 from pydantic import BaseModel, validator, root_validator
@@ -369,8 +369,6 @@ class OrderBaseSchema(PydanticModel):
     discount: Optional[float] = 0.0
     comment: Optional[str] = ""
     state: Optional[str]
-    # workbuy_id: Optional[int]
-    # storagebuy_id: Optional[int]
     has_invoice: Optional[bool] = False
     invoice_number: Optional[str]
     invoice_uuid: Optional[str]
@@ -416,18 +414,15 @@ class OrderCreateSchema(OrderBaseSchema):
     order_unregisteredproducts: Optional[List[UnregisteredProductCreateSchema]]
     payments: Optional[List[PaymentCreateSchema]]
 
-class OrderUpdateSchema(OrderBaseSchema):
+class OrderUpdateBaseSchema(OrderBaseSchema):
     claimant_id: Optional[int]
     taxpayer_id: Optional[int]
     order_provider_products: Optional[List[Union[OrderProductUpdateSchema, OrderProductCreateSchema]]]
-    order_unregisteredproducts: Optional[List[Union[UnregisteredProductUpdateSchema, UnregisteredProductCreateSchema]]]
+    order_unregisteredproducts: Optional[List[Union[UnregisteredProductCreateSchema, UnregisteredProductUpdateSchema]]]
     payments: Optional[List[Union[PaymentUpdateSchema, PaymentCreateSchema]]]
 
-class OrderUpdateSpecialSchema(OrderUpdateSchema):
-    id: Optional[int]
-    provider_id: int
-    taxpayer_id: int
-    claimant_id: Optional[int]
+class OrderUpdateSchema(OrderUpdateBaseSchema):
+    id: int
 
 OrderSerializer = pydantic_model_creator(Order, exclude=(
     "provider.contacts",
@@ -449,7 +444,7 @@ OrderSerializer = pydantic_model_creator(Order, exclude=(
 ))
 OrderSerializer.Config.schema = OrderSchema
 OrderSerializer.Config.create_schema = OrderCreateSchema
-OrderSerializer.Config.update_schema = OrderUpdateSchema
+OrderSerializer.Config.update_schema = OrderUpdateBaseSchema
 
 
 
@@ -484,6 +479,7 @@ class WorkCustomerProductUpdateSchema(PydanticModel):
     price: Optional[float]
 
 class WorkProductSchema(PydanticModel):
+    id: int
     product: GenericIDSchema
     amount: int
     price: float
@@ -538,7 +534,6 @@ class WorkBaseSchema(PydanticModel):
     include_iva: Optional[bool] = False
     discount: Optional[float] = 0.0
     comment: Optional[str]
-    workbuy_id: Optional[int]
     invoice_number: Optional[str]
     invoice_uuid: Optional[str]
     invoice_date: Optional[datetime.date]
@@ -559,6 +554,7 @@ class WorkSchema(WorkBaseSchema):
     due: Optional[datetime.date]
     subtotal: float
     total: float
+    workbuy_id: Optional[int]
 
     @root_validator(pre=True)
     def root_validator_pre(cls, v):
@@ -574,6 +570,7 @@ class WorkSchema(WorkBaseSchema):
         if v['include_iva']:
             v['total'] += v['total']*0.16
         v['customer'] = v["workbuy"]["customer"]
+        v["workbuy_id"] = v["workbuy"].get("id")
         return v
 
 class WorkCreateSchema(WorkBaseSchema):
@@ -585,7 +582,7 @@ class WorkCreateSchema(WorkBaseSchema):
     work_employees: Optional[List[WorkEmployeeCreateSchema]]
     payments: Optional[List[PaymentCreateSchema]]
 
-class WorkUpdateSchema(WorkBaseSchema):
+class WorkUpdateBaseSchema(WorkBaseSchema):
     number: Optional[str]
     taxpayer_id: Optional[int]
     work_products: Optional[List[Union[WorkProductUpdateSchema, WorkProductCreateSchema]]]
@@ -593,6 +590,9 @@ class WorkUpdateSchema(WorkBaseSchema):
     work_unregisteredproducts: Optional[List[Union[UnregisteredProductUpdateSchema, UnregisteredProductCreateSchema]]]
     work_employees: Optional[List[Union[WorkEmployeeUpdateSchema, WorkEmployeeCreateSchema]]]
     payments: Optional[List[Union[PaymentUpdateSchema, PaymentCreateSchema]]]
+
+class WorkUpdateSchema(WorkBaseSchema):
+    id: int
 
 
 WorkSerializer = pydantic_model_creator(Work, exclude=(
@@ -611,7 +611,7 @@ WorkSerializer = pydantic_model_creator(Work, exclude=(
 ))
 WorkSerializer.Config.schema = WorkSchema
 WorkSerializer.Config.create_schema = WorkCreateSchema
-WorkSerializer.Config.update_schema = WorkUpdateSchema
+WorkSerializer.Config.update_schema = WorkUpdateBaseSchema
 
 
 
@@ -658,8 +658,13 @@ class WorkBuyCreateSchema(PydanticModel):
 class WorkBuyUpdateSchema(PydanticModel):
     customer_id: Optional[int]
     organization_id: Optional[int]
-    orders: List[Union[OrderCreateSchema, OrderUpdateSchema]]
-    works: List[Union[WorkCreateSchema, WorkUpdateSchema]]
+    orders: List[Union[OrderUpdateSchema, OrderCreateSchema]]
+    works: List[Union[WorkUpdateSchema, WorkCreateSchema]]
+
+    # @root_validator(pre=True)
+    # def root_validator_pre(cls, v):
+    #     import pdb; pdb.set_trace()
+    #     return v
 
 WorkBuySerializer = pydantic_model_creator(WorkBuy, exclude=(
     'customer.contacts',
@@ -747,3 +752,12 @@ StorageBuySerializer = pydantic_model_creator(StorageBuy, exclude=(
 StorageBuySerializer.Config.schema = StorageBuySchema
 StorageBuySerializer.Config.create_schema = StorageBuyCreateSchema
 StorageBuySerializer.Config.update_schema = StorageBuyUpdateSchema
+
+
+class WorkOrderSchema(PydanticModel):
+    work_product_providers: Optional[Dict[int, int]] = {}
+    work_unregisteredproduct_providers: Optional[Dict[int, int]] = {}
+    work_customer_product_providers: Optional[Dict[int, int]] = {}
+
+class WorkOrderCreateSchema(OrderCreateSchema):
+    workbuy_id: int

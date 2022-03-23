@@ -14,7 +14,7 @@ from fastapi_pagination import paginate, Page, Params
 from main.api.errors import ObjectNotFound
 from main.api.auth.schemas import UserSchema
 from main.api.auth.dependencies import requires_login, requires_permission
-from main.api.schemas import ApplianceSerializer, BrandSerializer, CustomerSerializer, EmployeeSerializer, OrderSerializer, OrganizationSerializer, PercentageSerializer, ProductSerializer, ProviderSerializer, StatusSchema, StorageBuySerializer, StorageSerializer, StorageTypeSerializer, TaxPayerSerializer, WorkBuySerializer, WorkSerializer
+from main.api.schemas import ApplianceSerializer, BrandSerializer, CustomerSerializer, EmployeeSerializer, OrderSchema, OrderSerializer, OrganizationSerializer, PercentageSerializer, ProductSerializer, ProviderSerializer, StatusSchema, StorageBuySerializer, StorageSerializer, StorageTypeSerializer, TaxPayerSerializer, WorkBuySerializer, WorkOrderCreateSchema, WorkOrderSchema, WorkSerializer
 from main.logger import logger
 
 
@@ -230,3 +230,104 @@ for endpoint in crud_endpoints:
     register_update(router, endpoint["pathname"], endpoint["serializer"])
     register_delete(router, endpoint["pathname"], endpoint["serializer"])
 
+
+@rename("create_work-order")
+@router.post("/work_order/{obj_id}", response_model=List[OrderSchema], responses={404: {"model": HTTPNotFoundError}})
+async def create_work_order(obj_id: int, wo:WorkOrderSchema, u: UserSchema = Depends(requires_permission)):
+    logger.debug(f"Creating Orders from Work {obj_id}")
+    work_data = await WorkSerializer.from_queryset_single(WorkSerializer.__config__.orig_model.get(id=obj_id))
+    providers_data = await ProviderSerializer.from_queryset(ProviderSerializer.__config__.orig_model.all())
+    ppp_dict = {}
+    for p in providers_data:
+        ppp_dict[p.id] = {
+            'provider': p,
+            'provider_products_dict': {}
+        }
+        for pp in p.provider_products:
+            ppp_dict[p.id]['provider_products_dict'][pp.product.id] = pp
+    wp_dict = {wp.id:wp for wp in work_data.work_products}
+    wup_dict = {wup.id:wup for wup in work_data.work_unregisteredproducts}
+    wcp_dict = {wcp.id:wcp for wcp in work_data.work_customer_products}
+    orders = {}
+    # import pdb; pdb.set_trace()
+    for wp_id, p_id in wo.work_product_providers.items():
+        wp = wp_dict.get(wp_id)
+        ppp = ppp_dict.get(p_id)
+        if wp and ppp:
+            if ppp["provider"].id not in orders:
+                orders[ppp["provider"].id] = {
+                    "provider_id": ppp["provider"].id,
+                    "taxpayer_id": work_data.taxpayer.id,
+                    "workbuy_id": work_data.workbuy.id,
+                    "authorized": True,
+                    "order_provider_products": [],
+                    "order_unregisteredproducts": []
+                }
+            if wp.product.id in ppp["provider_products_dict"].keys():
+                orders[ppp["provider"].id]["order_provider_products"].append({
+                    "provider_product_id": ppp["provider_products_dict"][wp.product.id].id,
+                    "amount": wp.amount,
+                    "price": ppp["provider_products_dict"][wp.product.id].price
+                })
+            else:
+                orders[ppp["provider"].id]["order_unregisteredproducts"].append({
+                    "code": wp.product.code,
+                    "description": f"{wp.product.name} - {wp.product.description}",
+                    "amount": wp.amount,
+                    "price": 0
+                })
+    for wup_id, p_id in wo.work_unregisteredproduct_providers.items():
+        wup = wup_dict.get(wup_id)
+        ppp = ppp_dict.get(p_id)
+        if wup and ppp:
+            if ppp["provider"].id not in orders:
+                orders[ppp["provider"].id] = {
+                    "provider_id": ppp["provider"].id,
+                    "taxpayer_id": work_data.taxpayer.id,
+                    "workbuy_id": work_data.workbuy.id,
+                    "authorized": True,
+                    "order_provider_products": [],
+                    "order_unregisteredproducts": []
+                }
+            orders[ppp["provider"].id]["order_unregisteredproducts"].append({
+                "code": wup.code,
+                "description": wup.description,
+                "amount": wup.amount,
+                "price": 0
+            })
+    for wcp_id, p_id in wo.work_customer_product_providers.items():
+        wcp = wcp_dict.get(wcp_id)
+        ppp = ppp_dict.get(p_id)
+        if wcp and ppp:
+            if ppp["provider"].id not in orders:
+                orders[ppp["provider"].id] = {
+                    "provider_id": ppp["provider"].id,
+                    "taxpayer_id": work_data.taxpayer.id,
+                    "workbuy_id": work_data.workbuy.id,
+                    "authorized": True,
+                    "order_provider_products": [],
+                    "order_unregisteredproducts": []
+                }
+            if wcp.customer_product.product.id in ppp["provider_products_dict"].keys():
+                orders[ppp["provider"].id]["order_provider_products"].append({
+                    "provider_product_id": ppp["provider_products_dict"][wcp.customer_product.product.id].id,
+                    "amount": wcp.amount,
+                    "price": ppp["provider_products_dict"][wcp.customer_product.product.id].price
+                })
+            else:
+                orders[ppp["provider"].id]["order_unregisteredproducts"].append({
+                    "code": wcp.customer_product.product.code,
+                    "description": f"{wcp.customer_product.product.name} - {wcp.customer_product.product.description}",
+                    "amount": wcp.amount,
+                    "price": 0
+                })
+    resp = []
+    for order in orders.values():
+        if order["order_provider_products"] or order["order_unregisteredproducts"]:
+            logger.debug(f"Creating order: {order}")
+            # data = WorkOrderCreateSchema(**order)
+            db_obj = await OrderSerializer.__config__.orig_model.create(**order)
+            resp.append(await OrderSerializer.from_tortoise_orm(db_obj))
+        else:
+            logger.debug(f"Not creating empty order: {order}")
+    return resp
