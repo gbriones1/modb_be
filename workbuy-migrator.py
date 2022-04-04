@@ -76,9 +76,12 @@ async def main():
         headers = next(reader)
         for row in reader:
             w = dict(zip(headers, row))
-            if w.get('now') and isfloat(w.get('HOJA', "")) and w.get('ORG') and w.get('OC') and w['ORG'] != 'X':
+            if w.get('now') and isfloat(w.get('HOJA', "")) and w.get('ORG') and w.get('OC') and w['ORG'] != 'X' and w['now'] != '   ':
                 w_id = int(w['HOJA'])
-                w_date = datetime.strptime(w['now'], '%d/%m/%Y %H:%M:%S')
+                if isfloat(w['now']):
+                    w_date = datetime.fromordinal(datetime(1900, 1, 1).toordinal() + int(float(w['now'])) - 2)
+                elif w['now']:
+                    w_date = datetime.strptime(w['now'], '%d/%m/%Y  %H:%M:%S')
                 provider = None
                 cust_id = None
                 org_id = None
@@ -123,8 +126,10 @@ async def main():
                 elif not dry_run:
                     empl_id = (await create(EmployeeSerializer, name=w['COMPRA'])).id
                 for i in range(24):
-                    if isfloat(w.get(str(i+1)+'_CANT', "")) and isfloat(w.get(str(i+1)+'_IMPORTE', "")) and int(w.get(str(i+1)+'_CANT')) > 0:
-                        w_price += (float(w[str(i+1)+'_IMPORTE'])*int(w[str(i+1)+'_CANT']))
+                    if isfloat(w.get(str(i+1)+'_CANT', "")) and isfloat(w.get(str(i+1)+'_IMPORTE', "")) and int(float(w.get(str(i+1)+'_CANT'))) > 0:
+                        w_price += (float(w[str(i+1)+'_IMPORTE'])*int(float(w[str(i+1)+'_CANT'])))
+                        if len(w[str(i+1)+'_COD']) > 30:
+                            w[str(i+1)+'_COD'] = w[str(i+1)+'_COD'][:30]
                         product_query = await filter_by(ProductSerializer, code=w[str(i+1)+'_COD'])
                         if product_query:
                             pp_id = None
@@ -151,7 +156,7 @@ async def main():
                                 import pdb; pdb.set_trace()
                             order_provider_products.append({
                                 'provider_product_id': pp_id,
-                                'amount': int(w[str(i+1)+'_CANT']),
+                                'amount': int(float(w[str(i+1)+'_CANT'])),
                                 'price': float(w[str(i+1)+'_IMPORTE']),
                             })
                         else:
@@ -167,7 +172,7 @@ async def main():
                                 order_unregisteredproducts.append({
                                     'code': w[str(i+1)+'_COD'],
                                     'description': w[str(i+1)+'_REFA'],
-                                    'amount': int(w[str(i+1)+'_CANT']),
+                                    'amount': int(float(w[str(i+1)+'_CANT'])),
                                     'price': float(w[str(i+1)+'_IMPORTE']),
                                 })
                 w_price = float("{:.2f}".format(w_price))
@@ -181,8 +186,8 @@ async def main():
                 #     print(w_id)
                 #     print(w_price == impo, w.get('IMPORETE'), w_price)
 
-                if w['Factura'] != "" and w['Factura'] != "X":
-                    invoice_number=w['Factura']
+                if w['f1'] != "" and w['f1'] != "X":
+                    invoice_number=w['f1']
                 if not w_id in workbuys.keys():
                     workbuys[w_id] = {
                         'id': w_id,

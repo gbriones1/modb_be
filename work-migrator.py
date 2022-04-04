@@ -107,7 +107,10 @@ async def main():
                     org_id = organization_query[0].id
                 elif not dry_run:
                     try:
-                        org_id = (await create(OrganizationSerializer, name=w['TALLER'], prefix=w["OC"][0])).id
+                        prefix = w["OC"][0]
+                        if w['TALLER'] == 'RECAL':
+                            prefix = 'R'
+                        org_id = (await create(OrganizationSerializer, name=w['TALLER'], prefix=prefix)).id
                     except Exception as e:
                         # import pdb; pdb.set_trace()
                         raise e
