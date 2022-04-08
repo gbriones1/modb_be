@@ -113,7 +113,7 @@ def register_list(router: APIRouter, pathname: str, serializer: ModelMetaclass, 
                 range_filters[kwargs["on_field"]+"__gte"] = from_date
                 range_filters[kwargs["on_field"]+"__lte"] = to_date
             start = time.time()
-            result = await serializer.from_queryset(model.filter(**range_filters))
+            result = await serializer.from_queryset(model.filter(**range_filters).order_by('-id'))
             end = time.time()
             logger.debug(f"Response time: {end-start}")
             logger.debug(f"amount: {len(result)}")

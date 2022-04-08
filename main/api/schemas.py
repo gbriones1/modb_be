@@ -401,6 +401,7 @@ class OrderSchema(OrderBaseSchema):
         if v['include_iva']:
             v['total'] += v['total']*0.16
         if v.get('workbuy'):
+            print(v['workbuy'])
             v['workbuy_number'] = v['workbuy']['organization']['prefix'] + str(v['workbuy']['id'])
         if v.get('storagebuy'):
             v['storagebuy_number'] = v['storagebuy']['organization']['prefix'] + str(v['storagebuy']['id'])
@@ -575,6 +576,7 @@ class WorkSchema(WorkBaseSchema):
 
 class WorkCreateSchema(WorkBaseSchema):
     number: str
+    created_at: Optional[datetime.datetime]
     taxpayer_id: int
     work_products: Optional[List[WorkProductCreateSchema]]
     work_customer_products: Optional[List[WorkCustomerProductCreateSchema]]
@@ -584,6 +586,7 @@ class WorkCreateSchema(WorkBaseSchema):
 
 class WorkUpdateBaseSchema(WorkBaseSchema):
     number: Optional[str]
+    created_at: Optional[datetime.datetime]
     taxpayer_id: Optional[int]
     work_products: Optional[List[Union[WorkProductUpdateSchema, WorkProductCreateSchema]]]
     work_customer_products: Optional[List[Union[WorkCustomerProductUpdateSchema, WorkCustomerProductCreateSchema]]]
